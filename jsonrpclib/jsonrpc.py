@@ -1,15 +1,15 @@
 """
-Licensed under the Apache License, Version 2.0 (the "License"); 
-you may not use this file except in compliance with the License. 
-You may obtain a copy of the License at 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-   http://www.apache.org/licenses/LICENSE-2.0 
+   http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software 
-distributed under the License is distributed on an "AS IS" BASIS, 
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-See the License for the specific language governing permissions and 
-limitations under the License. 
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 ============================
 JSONRPC Library (jsonrpclib)
@@ -29,7 +29,7 @@ Eventually, I'll add a SimpleXMLRPCServer compatible library,
 and other things to tie the thing off nicely. :)
 
 For a quick-start, just open a console and type the following,
-replacing the server address, method, and parameters 
+replacing the server address, method, and parameters
 appropriately.
 >>> import jsonrpclib
 >>> server = jsonrpclib.Server('http://localhost:8181')
@@ -81,8 +81,8 @@ except ImportError:
 IDCHARS = string.ascii_lowercase+string.digits
 
 class UnixSocketMissing(Exception):
-    """ 
-    Just a properly named Exception if Unix Sockets usage is 
+    """
+    Just a properly named Exception if Unix Sockets usage is
     attempted on a platform that doesn't support them (Windows)
     """
     pass
@@ -162,14 +162,14 @@ from socket import socket
 
 USE_UNIX_SOCKETS = False
 
-try: 
+try:
     from socket import AF_UNIX, SOCK_STREAM
     USE_UNIX_SOCKETS = True
 except ImportError:
     pass
-    
+
 if (USE_UNIX_SOCKETS):
-    
+
     class UnixHTTPConnection(HTTPConnection):
         def connect(self):
             self.sock = socket(AF_UNIX, SOCK_STREAM)
@@ -184,16 +184,17 @@ if (USE_UNIX_SOCKETS):
             host, extra_headers, x509 = self.get_host_info(host)
             return UnixHTTP(host)
 
-    
+
 class ServerProxy(XMLServerProxy):
     """
     Unfortunately, much more of this class has to be copied since
     so much of it does the serialization.
     """
 
-    def __init__(self, uri, transport=None, encoding=None, 
-                 verbose=0, version=None):
+    def __init__(self, uri, transport=None, encoding=None,
+                 verbose=0, version=None, app_engine=True):
         import urllib
+        self.uri = uri
         if not version:
             version = config.version
         self.__version = version
@@ -222,6 +223,7 @@ class ServerProxy(XMLServerProxy):
         self.__transport = transport
         self.__encoding = encoding
         self.__verbose = verbose
+        self.__app_engine = app_engine
 
     def _request(self, methodname, params, rpcid=None):
         request = dumps(params, methodname, encoding=self.__encoding,
@@ -240,19 +242,31 @@ class ServerProxy(XMLServerProxy):
     def _run_request(self, request, notify=None):
         history.add_request(request)
 
-        response = self.__transport.request(
-            self.__host,
-            self.__handler,
-            request,
-            verbose=self.__verbose
-        )
-        
+        if self.__app_engine:
+            from google.appengine.api import urlfetch
+
+            response = urlfetch.fetch(
+                url=self.uri,
+                payload=request,
+                method=urlfetch.POST,
+                headers={'Content-Type': 'application/json'}
+            ).content
+
+        else:
+
+            response = self.__transport.request(
+                self.__host,
+                self.__handler,
+                request,
+                verbose=self.__verbose
+            )
+
         # Here, the XMLRPC library translates a single list
         # response to the single value -- should we do the
         # same, and require a tuple / list to be passed to
-        # the response object, or expect the Server to be 
+        # the response object, or expect the Server to be
         # outputting the response appropriately?
-        
+
         history.add_response(response)
         if not response:
             return None
@@ -270,7 +284,7 @@ class ServerProxy(XMLServerProxy):
 
 
 class _Method(XML_Method):
-    
+
     def __call__(self, *args, **kwargs):
         if len(args) > 0 and len(kwargs) > 0:
             raise ProtocolError('Cannot use both positional ' +
@@ -293,11 +307,11 @@ class _Notify(object):
 
     def __getattr__(self, name):
         return _Method(self._request, name)
-        
+
 # Batch implementation
 
 class MultiCallMethod(object):
-    
+
     def __init__(self, method, notify=False):
         self.method = method
         self.params = []
@@ -318,14 +332,14 @@ class MultiCallMethod(object):
 
     def __repr__(self):
         return '%s' % self.request()
-        
+
     def __getattr__(self, method):
         new_method = '%s.%s' % (self.method, method)
         self.method = new_method
         return self
 
 class MultiCallNotify(object):
-    
+
     def __init__(self, multicall):
         self.multicall = multicall
 
@@ -335,7 +349,7 @@ class MultiCallNotify(object):
         return new_job
 
 class MultiCallIterator(object):
-    
+
     def __init__(self, results):
         self.results = results
 
@@ -353,7 +367,7 @@ class MultiCallIterator(object):
         return len(self.results)
 
 class MultiCall(object):
-    
+
     def __init__(self, server):
         self._server = server
         self._job_list = []
@@ -381,7 +395,7 @@ class MultiCall(object):
 
     __call__ = _request
 
-# These lines conform to xmlrpclib's "compatibility" line. 
+# These lines conform to xmlrpclib's "compatibility" line.
 # Not really sure if we should include these, but oh well.
 Server = ServerProxy
 
@@ -419,7 +433,7 @@ class Payload(dict):
             version = config.version
         self.id = rpcid
         self.version = float(version)
-    
+
     def request(self, method, params=[]):
         if type(method) not in types.StringTypes:
             raise ValueError('Method name must be a string.')
@@ -457,10 +471,10 @@ class Payload(dict):
         error['error'] = {'code':code, 'message':message}
         return error
 
-def dumps(params=[], methodname=None, methodresponse=None, 
+def dumps(params=[], methodname=None, methodresponse=None,
         encoding=None, rpcid=None, version=None, notify=None):
     """
-    This differs from the Python implementation in that it implements 
+    This differs from the Python implementation in that it implements
     the rpcid argument since the 2.0 spec requires it for responses.
     """
     if not version:
@@ -469,7 +483,7 @@ def dumps(params=[], methodname=None, methodresponse=None,
     if methodname in types.StringTypes and \
             type(params) not in valid_params and \
             not isinstance(params, Fault):
-        """ 
+        """
         If a method, and params are not in a listish or a Fault,
         error out.
         """
@@ -510,7 +524,7 @@ def loads(data):
         # notification
         return None
     result = jloads(data)
-    # if the above raises an error, the implementing server code 
+    # if the above raises an error, the implementing server code
     # should return something like the following:
     # { 'jsonrpc':'2.0', 'error': fault.error(), id: None }
     if config.use_jsonclass == True:
